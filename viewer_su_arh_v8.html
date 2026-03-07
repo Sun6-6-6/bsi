@@ -1410,13 +1410,12 @@ self.onmessage=function(e){
       if(prevLo===253 || prevLo===254) sreason='автоматическое включение';
       label='ПУСК:'+sreason;
     }
-    // Detect СТОП: transition from running/starting to idle/fault
-    else if((isIdle(lo)||isFault(lo)) && (isRunning(prevLo)||isStarting(prevLo))){
+    // Detect СТОП: transition from running/starting only to idle states.
+    // Fault transitions are shown as alarms to match original reader behavior.
+    else if(isIdle(lo) && (isRunning(prevLo)||isStarting(prevLo))){
       type='stop';
       var reason=text;
-      if(isFault(lo)){
-        reason=ENUM3[lo]||('Код '+lo);
-      } else if(lo===251){
+      if(lo===251){
         // Простой — look for fault reason in nearby records
         reason='Программный останов';
         for(var lf=Math.max(0,i-2);lf<=Math.min(n-1,i+3);lf++){
