@@ -1369,8 +1369,9 @@ self.onmessage=function(e){
   // State categories
   function isIdle(lo){ return lo===251||lo===253||lo===254||lo===255||lo===0; }
   function isRunning(lo){ return lo===252; }
-  function isStarting(lo){ return lo>=234&&lo<=247; } // work modes incl. Разгон(242)
+  function isStarting(lo){ return lo>=235&&lo<=247; } // work modes incl. Разгон(242), exclude 234=Останов
   function isFault(lo){ return lo>=1&&lo<=89; }
+  function isStopTarget(lo){ return lo===234||lo===251||lo===253||lo===255; }
 
   var prevLo=0;
   for(let i=0;i<n;i++){
@@ -1410,11 +1411,12 @@ self.onmessage=function(e){
       if(prevLo===253 || prevLo===254) sreason='автоматическое включение';
       label='ПУСК:'+sreason;
     }
-    // Detect СТОП: transition from running/starting only to idle states.
+    // Detect СТОП: transition from running/starting to explicit stop states
+    // (including 234=Останов), but not to Ожидание АПВ (254).
     // Fault transitions are shown as alarms to match original reader behavior.
-    else if(isIdle(lo) && (isRunning(prevLo)||isStarting(prevLo))){
+    else if(isStopTarget(lo) && (isRunning(prevLo)||isStarting(prevLo))){
       type='stop';
-      var reason=text;
+      var reason=(lo===234)?'Программный останов':text;
       if(lo===251){
         // Простой — look for fault reason in nearby records
         reason='Программный останов';
