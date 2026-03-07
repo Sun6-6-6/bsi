@@ -1,0 +1,1697 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Просмотр хронологии СУ УЭЦН</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Manrope:wght@300;400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0e17;
+    --bg-card: #111827;
+    --bg-hover: #1a2235;
+    --bg-sidebar: #0d1220;
+    --border: #1e293b;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --text-accent: #93c5fd;
+    --blue: #3b82f6;
+    --blue-glow: rgba(59,130,246,0.15);
+    --sidebar-w: 240px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; }
+  body { font-family:'Manrope',sans-serif; background:var(--bg); color:var(--text); }
+
+  .dropzone-wrap {
+    display:flex; align-items:center; justify-content:center;
+    height:100vh; padding:40px;
+  }
+  .dropzone {
+    width:100%; max-width:520px;
+    border:2px dashed var(--border); border-radius:16px;
+    padding:56px 36px; text-align:center; cursor:pointer;
+    transition:all .25s; background:var(--bg-card);
+  }
+  .dropzone:hover,.dropzone.drag-over { border-color:var(--blue); background:var(--blue-glow); }
+  .dropzone h2 { font-size:18px; font-weight:600; margin:14px 0 8px; }
+  .dropzone p { color:var(--text-dim); font-size:13px; line-height:1.5; }
+  .dropzone .icon { font-size:44px; opacity:.7; }
+  .dropzone .fmt { margin-top:14px; display:inline-flex; gap:8px; }
+  .dropzone .fmt span {
+    background:rgba(59,130,246,0.1); color:var(--text-accent);
+    padding:3px 10px; border-radius:5px; font-size:11px;
+    font-family:'JetBrains Mono',monospace; font-weight:500;
+  }
+  #fileInput { display:none; }
+
+  .loading { position:fixed; inset:0; background:rgba(10,14,23,0.88); backdrop-filter:blur(8px);
+    display:none; align-items:center; justify-content:center; z-index:300; flex-direction:column; gap:14px; }
+  .spinner { width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--blue);
+    border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  #cursorSpinner {
+    display:none; position:fixed; z-index:9998; pointer-events:none;
+    align-items:center; gap:8px;
+    background:rgba(17,24,39,0.92); backdrop-filter:blur(6px);
+    border:1px solid var(--border); border-radius:8px;
+    padding:6px 12px; font-size:11px; color:var(--text-dim);
+    font-family:'JetBrains Mono',monospace; white-space:nowrap;
+    box-shadow:0 4px 16px rgba(0,0,0,0.4);
+  }
+  #cursorSpinner .cs-dot {
+    width:12px; height:12px; border:2px solid var(--border);
+    border-top-color:var(--blue); border-radius:50%;
+    animation:spin .7s linear infinite; flex-shrink:0;
+  }
+
+  .app { display:none; height:100vh; grid-template-columns:var(--sidebar-w) 1fr; grid-template-rows:auto 1fr auto; }
+  .app.active { display:grid; }
+
+  .hdr {
+    grid-column:1/-1; padding:8px 16px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:12px;
+    background:linear-gradient(180deg,rgba(59,130,246,0.04) 0%,transparent 100%);
+  }
+  .hdr-icon { width:30px; height:30px; background:linear-gradient(135deg,#3b82f6,#06b6d4);
+    border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .hdr h1 { font-size:14px; font-weight:700; }
+  .hdr-info { display:flex; gap:16px; margin-left:auto; font-size:10px; flex-wrap:wrap; }
+  .hdr-info .i { display:flex; gap:4px; }
+  .hdr-info .l { color:var(--text-dim); }
+  .hdr-info .v { font-family:'JetBrains Mono',monospace; font-weight:600; }
+
+  .side {
+    background:var(--bg-sidebar); border-right:1px solid var(--border);
+    overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:4px;
+  }
+  .side::-webkit-scrollbar { width:4px; }
+  .side::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+
+  .side-title {
+    font-size:9px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--text-dim); padding:6px 8px 2px; font-weight:700;
+  }
+
+  .grp-btn {
+    display:flex; align-items:center; gap:8px;
+    padding:7px 10px; border-radius:7px;
+    border:1px solid var(--border); background:var(--bg-card);
+    color:var(--text-dim); font-size:12px; font-weight:600;
+    cursor:pointer; transition:all .15s; width:100%;
+    font-family:'Manrope',sans-serif; text-align:left;
+  }
+  .grp-btn:hover { background:var(--bg-hover); color:var(--text); }
+  .grp-btn.active { border-color:var(--blue); background:rgba(59,130,246,0.1); color:var(--text-accent); }
+  .grp-btn .dot { width:8px; height:8px; border-radius:3px; flex-shrink:0; }
+  .grp-btn .cnt { margin-left:auto; font-size:10px; opacity:.5; font-family:'JetBrains Mono',monospace; }
+
+  .p-btn {
+    display:flex; align-items:center; gap:7px;
+    padding:5px 10px 5px 24px; border-radius:5px;
+    cursor:pointer; transition:all .12s; font-size:11px;
+    color:var(--text-dim); user-select:none;
+  }
+  .p-btn:hover { background:var(--bg-hover); }
+  .p-btn .cb {
+    width:13px; height:13px; border:1.5px solid var(--border); border-radius:3px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    font-size:9px; transition:all .12s;
+  }
+  .p-btn.on .cb { border-color:var(--blue); background:var(--blue); color:#fff; }
+  .p-btn.on { color:var(--text); }
+  .p-btn .clr { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+  .side-sep { height:1px; background:var(--border); margin:4px 0; }
+
+  .mode-row {
+    display:flex; border:1px solid var(--border); border-radius:7px; overflow:hidden; margin:2px 0;
+  }
+  .mode-btn {
+    flex:1; padding:6px; text-align:center; font-size:11px; font-weight:500;
+    cursor:pointer; background:var(--bg-card); color:var(--text-dim);
+    border:none; transition:all .12s; font-family:'Manrope',sans-serif;
+  }
+  .mode-btn:first-child { border-right:1px solid var(--border); }
+  .mode-btn.active { background:rgba(59,130,246,0.12); color:var(--text-accent); }
+
+  .zoom-row { display:flex; gap:4px; align-items:center; margin:2px 0; }
+  .z-btn {
+    width:28px; height:26px; border-radius:6px; border:1px solid var(--border);
+    background:var(--bg-card); color:var(--text); font-size:14px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:all .12s;
+  }
+  .z-btn:hover { border-color:var(--blue); }
+  .range-txt {
+    flex:1; text-align:center; font-family:'JetBrains Mono',monospace;
+    font-size:8.5px; color:var(--text-dim); line-height:1.3;
+  }
+
+  .main {
+    overflow-y:auto; overflow-x:hidden;
+    display:flex; flex-direction:column;
+    padding:8px;
+    gap:6px;
+  }
+  .main::-webkit-scrollbar { width:6px; }
+  .main::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+
+  .cpanel {
+    background:var(--bg-card); border:1px solid var(--border); border-radius:10px;
+    padding:8px 12px; display:flex; flex-direction:column;
+    min-height:120px; position:relative;
+  }
+  .cpanel.full { flex:1; }
+  .cpanel-hdr {
+    display:flex; align-items:center; gap:8px; margin-bottom:2px; flex-shrink:0; min-height:22px;
+  }
+  .cpanel-title { font-size:12px; font-weight:600; }
+  .cpanel-legend { display:flex; gap:10px; flex-wrap:wrap; }
+  .cleg { display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text-dim); }
+  .cleg-d { width:8px; height:8px; border-radius:3px; }
+
+  .canvas-wrap { flex:1; position:relative; min-height:0; }
+  .canvas-wrap::after {
+    content:'двойной клик → открыть журнал';
+    position:absolute; bottom:5px; right:58px;
+    font-size:9px; color:rgba(100,116,139,0.4);
+    font-family:'JetBrains Mono',monospace;
+    pointer-events:none; letter-spacing:0.3px;
+  }
+  .canvas-wrap canvas {
+    position:absolute; top:0; left:0; width:100%!important; height:100%!important; cursor:crosshair;
+  }
+
+  .cpanel-resize {
+    height:6px; cursor:ns-resize; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    margin-top:2px; border-radius:0 0 8px 8px;
+    transition:background .15s;
+  }
+  .cpanel-resize:hover, .cpanel-resize.dragging {
+    background:rgba(59,130,246,0.12);
+  }
+  .cpanel-resize::after {
+    content:''; display:block;
+    width:40px; height:3px;
+    border-radius:2px;
+    background:var(--border);
+    transition:background .15s;
+  }
+  .cpanel-resize:hover::after, .cpanel-resize.dragging::after {
+    background:var(--blue);
+  }
+
+  .tip {
+    position:fixed; background:rgba(13,18,32,0.95); border:1px solid var(--border);
+    border-radius:8px; padding:9px 12px; font-size:11px; pointer-events:none;
+    z-index:200; display:none; backdrop-filter:blur(6px);
+    box-shadow:0 8px 24px rgba(0,0,0,0.5); min-width:160px;
+  }
+  .tip-t { font-family:'JetBrains Mono',monospace; color:var(--text-accent); margin-bottom:4px; font-size:10px; }
+  .tip-r { display:flex; justify-content:space-between; gap:12px; padding:1px 0; }
+  .tip-n { color:var(--text-dim); }
+  .tip-v { font-family:'JetBrains Mono',monospace; font-weight:600; }
+
+  .empty-msg {
+    flex:1; display:flex; align-items:center; justify-content:center;
+    color:var(--text-dim); font-size:14px;
+  }
+
+  .journal-btn {
+    display:flex; align-items:center; gap:7px;
+    padding:6px 14px; border-radius:8px; border:none; cursor:pointer;
+    background:linear-gradient(135deg,#f59e0b,#ef4444);
+    color:#fff; font-family:'Manrope',sans-serif; font-size:12px; font-weight:700;
+    letter-spacing:0.3px; flex-shrink:0;
+    box-shadow:0 0 14px rgba(245,158,11,0.35);
+    transition:all .2s;
+  }
+  .journal-btn:hover { transform:translateY(-1px); box-shadow:0 0 20px rgba(245,158,11,0.5); }
+  .journal-btn.active { background:linear-gradient(135deg,#ef4444,#f59e0b); box-shadow:0 0 20px rgba(239,68,68,0.5); }
+  .journal-btn .j-icon { font-size:14px; }
+
+  .table-area {
+    position:fixed; inset:0; z-index:200;
+    display:none; flex-direction:column;
+    background:var(--bg); border-left:none;
+  }
+  .table-area.open { display:flex; }
+  .table-hdr {
+    display:flex; align-items:center; gap:10px;
+    padding:8px 14px; background:var(--bg-card); flex-shrink:0;
+    border-bottom:1px solid var(--border);
+  }
+  .table-hdr-title { font-size:13px; font-weight:600; }
+  .table-hdr-cnt { font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; }
+  .table-close {
+    margin-left:auto; width:24px; height:24px; border-radius:5px;
+    border:1px solid var(--border); background:var(--bg-card);
+    color:var(--text); cursor:pointer; font-size:14px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .table-close:hover { border-color:var(--blue); }
+  .table-filter {
+    display:flex; gap:4px; padding:6px 14px; flex-shrink:0;
+    background:var(--bg-card); border-bottom:1px solid var(--border);
+  }
+  .tf-btn {
+    padding:4px 10px; border-radius:5px; border:1px solid var(--border);
+    background:transparent; color:var(--text-dim); font-size:10px;
+    cursor:pointer; font-family:'Manrope',sans-serif; font-weight:500;
+    transition:all .12s;
+  }
+  .tf-btn:hover { border-color:var(--text-dim); color:var(--text); }
+  .tf-btn.active { border-color:var(--blue); color:var(--text-accent); background:rgba(59,130,246,0.08); }
+  .table-scroll { flex:1; overflow:auto; position:relative; }
+  .table-scroll::-webkit-scrollbar { width:5px; height:5px; }
+  .table-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+  .ev-wrap { display:flex; flex-direction:column; flex:1; overflow:hidden; }
+  .ev-head-wrap { overflow:hidden; flex-shrink:0; background:var(--bg-card); border-bottom:1px solid var(--border); }
+  .ev-table { border-collapse:separate; border-spacing:0; font-size:11px; font-family:'JetBrains Mono',monospace; table-layout:fixed; }
+  .ev-table-head { width:100%; }
+  .ev-table-head thead th {
+    padding:6px 10px; text-align:left;
+    color:var(--text-dim); font-weight:500; white-space:nowrap;
+    overflow:hidden; user-select:none; box-sizing:border-box; position:relative;
+    background:var(--bg-card);
+  }
+  .ev-table-head .th-resize {
+    position:absolute; right:0; top:4px; bottom:4px; width:3px;
+    cursor:col-resize; background:rgba(100,116,139,0.35); border-radius:2px; z-index:3;
+  }
+  .ev-table-head .th-resize:hover,
+  .ev-table-head th.resizing .th-resize { background:var(--blue); opacity:0.8; width:3px; }
+  #evBody tr { display:table-row; }
+  #evBody td { padding:4px 10px; border-bottom:1px solid rgba(30,41,59,0.3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; box-sizing:border-box; }
+  #evBody tr:hover { background:var(--bg-hover); }
+  .ev-table tbody tr.ev-highlight {
+    background:rgba(245,158,11,0.15);
+    outline:1px solid rgba(245,158,11,0.5);
+    animation: hl-pulse 1.8s ease-out forwards;
+  }
+  @keyframes hl-pulse {
+    0%   { background:rgba(245,158,11,0.35); }
+    100% { background:rgba(245,158,11,0.08); }
+  }
+  .ev-tag {
+    display:inline-block; padding:1px 6px; border-radius:4px; font-size:9px; font-weight:600;
+  }
+  .ev-tag.stop { background:rgba(239,68,68,0.15); color:#ef4444; }
+  .ev-tag.start { background:rgba(34,197,94,0.15); color:#22c55e; }
+  .ev-tag.freq { background:rgba(245,158,11,0.15); color:#f59e0b; }
+  .ev-tag.setpoint { background:rgba(251,191,36,0.15); color:#fbbf24; }
+  .ev-tag.alarm { background:rgba(239,68,68,0.2); color:#f87171; }
+  .ev-tag.mode { background:rgba(139,92,246,0.15); color:#a78bfa; }
+</style>
+</head>
+<body>
+
+<div class="dropzone-wrap" id="dzWrap">
+  <div class="dropzone" id="dz">
+    <div class="icon">📂</div>
+    <h2>Загрузите файл хронологии</h2>
+    <p>Перетащите .arh сюда или нажмите для выбора</p>
+    <div class="fmt"><span>.arh</span></div>
+  </div>
+</div>
+<input type="file" id="fileInput" accept=".arh">
+
+<div class="loading" id="load">
+  <div class="spinner"></div>
+  <div id="loadMsg" style="font-size:13px;color:var(--text-dim)">Обработка файла...</div>
+</div>
+<div id="cursorSpinner">
+  <div class="cs-dot"></div>
+  <span id="cursorSpinnerMsg">Загрузка...</span>
+</div>
+
+<div class="app" id="app">
+  <div class="hdr">
+    <div class="hdr-icon">⚡</div>
+    <h1>Хронология СУ УЭЦН</h1>
+    <button class="journal-btn" id="journalBtnHdr" style="margin-left:16px">
+      <span class="j-icon">📋</span>Журнал событий
+    </button>
+    <div class="hdr-info" id="hdrInfo"></div>
+  </div>
+  <div class="side" id="side"></div>
+  <div class="main" id="main"></div>
+  <div class="table-area" id="tableWrap">
+    <div class="table-hdr">
+      <span class="table-hdr-title">Журнал событий</span>
+      <span class="table-hdr-cnt" id="evCnt"></span>
+      <button class="table-close" id="evClose">✕</button>
+    </div>
+    <div class="table-filter" id="evFilter"></div>
+    <div class="ev-wrap">
+      <div class="ev-head-wrap" id="evHeadWrap">
+        <table class="ev-table ev-table-head" id="evTableHead">
+          <colgroup id="evColsHead"></colgroup>
+          <thead id="evHead"></thead>
+        </table>
+      </div>
+      <div class="table-scroll" id="evScroller" style="flex:1;overflow:auto;position:relative">
+        <div id="evViewport" style="position:relative">
+          <table class="ev-table" id="evTable" style="width:100%">
+            <colgroup id="evCols"></colgroup>
+            <tbody id="evBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tip" id="tip"></div>
+<div id="dragOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(10,14,23,0.92);
+  backdrop-filter:blur(8px);align-items:center;justify-content:center;flex-direction:column;gap:12px;
+  pointer-events:none;">
+  <div style="font-size:44px">📂</div>
+  <div style="font-size:18px;font-weight:600;color:#93c5fd">Отпустите файл для загрузки</div>
+  <div style="font-size:13px;color:#64748b">.arh файл хронологии СУ УЭЦН</div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+// ENUM TABLES from Etalon XML configs (27_038)
+// ════════════════════════════════════════
+const ENUM3 = {
+  0:'',1:'Недогрузка ПЭД',2:'Перегрузка ПЭД',3:'Низкое сопр.изоляции',
+  4:'Низкое напряжение',5:'Высокое напряжение',6:'Высокое напр. силовой цепи',
+  7:'Низкое напр. силовой цепи',8:'Превышено кол-во пусков',9:'Перегрев IGBT',
+  10:'Перегрев фильтра',11:'Аппаратная защита инвертора',12:'Питание драйвера',
+  13:'Контактный манометр',14:'Доп.аналоговый вход №0',15:'Чередование фаз',
+  16:'Высокая температура ПЭД',17:'Высокая вибрация',18:'Низкое давление на приеме',
+  19:'Низкая частота',20:'Высокая частота',21:'Дисбаланс токов',22:'Дисбаланс напряжений',
+  23:'Турбинное вращение',24:'Прочие ошибки',25:'Нет связи с ТМС',26:'Открыта дверь',
+  27:'Пропало питание',28:'МТЗ ПЭД',29:'Авария тиристоров',30:'Предельное токоограничение',
+  31:'Автомат фильтра',32:'По подхвату',33:'Программный останов',34:'Оператор',
+  35:'Дистанционное отключение',39:'По количеству АПВ',
+  40:'Ошибка ОЗУ',41:'Отключен',42:'Отказ дискр. входов',43:'Отказ АЦП',
+  44:'Аналоговое питание',45:'Питание датчиков',46:'Ошибка EEPROM',47:'ПЧ не готов',
+  48:'Сбой уставок',49:'Высокий ток утечки',50:'МТЗ СУ',
+  51:'Контактный манометр (нижн.)',52:'Авария контактора',
+  53:'Перегруз по току при работе',54:'Перегруз по току в нагрузке',
+  55:'КЗ фазы U',56:'КЗ фазы V',57:'КЗ фазы W',
+  58:'Обрыв входной фазы',59:'Обрыв выходной фазы',
+  60:'Перегруз по напр. при разгоне',61:'Перегруз по напр. при торможении',
+  62:'Перегруз по напр. при работе',63:'Перегруз инвертора',64:'Перегруз двигателя',
+  65:'Перегруз торм. резистора',66:'Перегрев инвертора',67:'Внешняя авария',
+  68:'Сбой EEPROM1',69:'Сбой EEPROM2',70:'Сбой EEPROM3',71:'Сбой RAM',
+  72:'Сбой ROM',73:'Сбой CPU',74:'Сбой обмена по сети',75:'Неизвестная ошибка',
+  76:'Сбой датчика тока',77:'Тип опц. устройства',78:'Сбой FLASH',
+  79:'Недогруз инвертора',80:'Низкое U сил. цепи',81:'Ошибка 81',
+  82:'Перегрузка по моменту',83:'КЗ на землю',84:'КЗ на землю (2)',
+  85:'Ошибка 85',86:'Ошибка 86',87:'Защита IGBT',88:'Защита IGBT (2)',89:'Защита IGBT (3)',
+  234:'Останов',235:'Токоограничение',236:'Синхронизация',237:'Ограничение F по Ud',
+  238:'Автооптимизация',239:'Встряхивание',240:'Дегазация',241:'ПИД реж.',
+  242:'Разгон',243:'Вывод на реж.',244:'Встряхивание',245:'Толчковый реж.',
+  246:'Раскачка',247:'Подхват',
+  251:'Простой',252:'Работа',253:'Пауза',254:'Ожидание АПВ',255:'Блокировка'
+};
+const ENUM2 = {35:'автоматическое включение',36:'оператор',37:'дистанционное включение',49:'запрет пуска'};
+const ENUM26 = {
+  70:'Сброс уставок контроллера',71:'Ввод пароля ур.1',72:'Ввод пароля ур.2',
+  73:'Автокоррекция часов',74:'Очистка архива',75:'Запуск автооптимизации',
+  76:'Окончание автооптимизации',77:'Деблокировка контроллера',
+  78:'Смена переключателя работа/стоп',79:'Подключен ТМС',80:'Отключение ТМС',
+  81:'Считывание хронологии',82:'Открыта дверь',83:'Работа с меню',
+  84:'Сброс счетчиков',85:'Подключение СЭЭ',86:'Отключение СЭЭ',
+  87:'Коэфф ПИД по умолчанию',88:'Откл. автомата питания контроллера',
+  89:'Сохранение уставок в EEPROM',90:'Загрузка уставок из EEPROM',
+  91:'Нормальное напряжение питания',93:'Стоп по Modbus',94:'Пуск по Modbus',
+  95:'Стоп с дискр. входа',96:'Пуск с дискр. входа',
+  97:'Перегруз входных цепей',98:'Обновление ПО КСУ',99:'Обновление ПО панели',
+  101:'Переход на байпас',102:'Переход на ЧРП',105:'Дист. деблокировка',
+  106:'Сохранение уставок на USB',107:'Загрузка уставок с USB',
+  108:'Ошибка включения байпаса',109:'Некорректная функция modbus',
+  110:'Ошибка включения фильтра гармоник',111:'Запуск ДКГ',112:'Отключение ДКГ',
+  113:'Отключение ДКГ — перегруз',244:'Высокий ток утечки',
+  245:'Событие высокое напр.',246:'Событие низкое напр.',247:'Сброс контроллера по watchdog'
+};
+
+function decodeStateLo(raw){
+  if(raw>=65534) return {idx:0,text:'—',color:'#64748b'};
+  const lo=raw&0xFF;
+  const text=ENUM3[lo]||('Код '+lo);
+  const color=(lo>=1&&lo<=89)?'#ef4444':(lo===251||lo===255)?'#ef4444':
+    (lo>=234&&lo<=247||lo===252)?'#22c55e':(lo===253||lo===254)?'#eab308':'#64748b';
+  return {idx:lo,text,color};
+}
+
+// ════════════════════════════════════════
+// PARAMETER CONFIG MAPS (from XML mixed_block)
+// Key = nParams. Each entry: {name, fmt, sem(key), c(color), g(group), div}
+// Состояние always last, excluded from charts
+// ════════════════════════════════════════
+const PCFG = {
+  26:[
+    {n:'F,Гц',f:1,g:'freq',c:'#f59e0b'},{n:'Ia,А',f:1,g:'current',c:'#ef4444'},{n:'Ib,А',f:1,g:'current',c:'#22c55e'},{n:'Ic,А',f:1,g:'current',c:'#3b82f6'},
+    {n:'Дисб.I,%',f:0,g:'other1',c:'#a3a3a3'},{n:'Pвх,кВт',f:0,g:'power',c:'#d946ef'},{n:'Udc,V',f:0,g:'voltage_out',c:'#ec4899'},{n:'Uвых,В',f:0,g:'voltage_out',c:'#f59e0b'},
+    {n:'Pa,кВт',f:0,g:'power',c:'#a78bfa'},{n:'Cos',f:2,g:'other2',c:'#fbbf24'},{n:'Загр,%',f:0,g:'load',c:'#fb923c'},{n:'UAB,В',f:0,g:'voltage',c:'#ef4444'},
+    {n:'UBC,В',f:0,g:'voltage',c:'#22c55e'},{n:'UAC,В',f:0,g:'voltage',c:'#3b82f6'},{n:'R,кОм',f:0,g:'insulation',c:'#10b981'},{n:'P,atm',f:1,g:'pressure',c:'#06b6d4'},
+    {n:'Тжид,Гр',f:4,g:'temp_well',c:'#14b8a6'},{n:'ТПЭД,Гр',f:4,g:'temp_ped',c:'#ef4444'},{n:'Вибр.X',f:1,g:'vibration',c:'#7c3aed'},{n:'Вибр.Y',f:1,g:'vibration',c:'#a78bfa'},
+    {n:'Вибр.Z',f:1,g:'vibration',c:'#c4b5fd'},{n:'Ан.Вх',f:1,g:'other2',c:'#8b5cf6'},{n:'Fт,Гц',f:0,g:'freq',c:'#ef4444'},{n:'Tплиты,Гр',f:0,g:'other2',c:'#6b7280'},
+    {n:'Tф,Гр',f:0,g:'other2',c:'#6b7280'},{n:'Состояние',f:11,g:'status',c:'#64748b'}
+  ],
+  29:[
+    {n:'F,Гц',f:1,g:'freq',c:'#f59e0b'},{n:'Ia,А',f:1,g:'current',c:'#ef4444'},{n:'Ib,А',f:1,g:'current',c:'#22c55e'},{n:'Ic,А',f:1,g:'current',c:'#3b82f6'},
+    {n:'Дисб.I,%',f:0,g:'other1',c:'#a3a3a3'},{n:'Fзад,Гц',f:1,g:'freq',c:'#22c55e'},{n:'Udc,V',f:0,g:'voltage_out',c:'#ec4899'},{n:'Uвых,В',f:0,g:'voltage_out',c:'#f59e0b'},
+    {n:'Pa,кВт',f:0,g:'power',c:'#a78bfa'},{n:'Cos',f:2,g:'other2',c:'#fbbf24'},{n:'Загр,%',f:0,g:'load',c:'#fb923c'},{n:'UAB,В',f:0,g:'voltage',c:'#ef4444'},
+    {n:'UBC,В',f:0,g:'voltage',c:'#22c55e'},{n:'UAC,В',f:0,g:'voltage',c:'#3b82f6'},{n:'R,кОм',f:0,g:'insulation',c:'#10b981'},{n:'P,atm',f:1,g:'pressure',c:'#06b6d4'},
+    {n:'Тжид,Гр',f:4,g:'temp_well',c:'#14b8a6'},{n:'ТПЭД,Гр',f:4,g:'temp_ped',c:'#ef4444'},{n:'Вибр.X',f:1,g:'vibration',c:'#7c3aed'},{n:'Вибр.Y',f:1,g:'vibration',c:'#a78bfa'},
+    {n:'Вибр.Z',f:1,g:'vibration',c:'#c4b5fd'},{n:'Погруж,м',f:0,g:'other2',c:'#0ea5e9'},{n:'Fт,Гц',f:0,g:'freq',c:'#ef4444'},{n:'Tохл,Гр',f:0,g:'other2',c:'#6b7280'},
+    {n:'Tф,Гр',f:0,g:'other2',c:'#6b7280'},{n:'T на вык',f:0,g:'other2',c:'#f43f5e'},{n:'P на вык',f:1,g:'other2',c:'#fbbf24'},{n:'Q на вык',f:0,g:'other2',c:'#10b981'},
+    {n:'Состояние',f:11,g:'status',c:'#64748b'}
+  ],
+  34:[
+    {n:'Вращение',f:11,g:'status',c:'#64748b'},{n:'UAB,В',f:0,g:'voltage',c:'#ef4444'},{n:'UBC,В',f:0,g:'voltage',c:'#22c55e'},{n:'UAC,В',f:0,g:'voltage',c:'#3b82f6'},
+    {n:'Дисб U',f:0,g:'other1',c:'#f97316'},{n:'U ПЭД',f:0,g:'voltage',c:'#ec4899'},{n:'Uвых,В',f:0,g:'voltage_out',c:'#f59e0b'},{n:'F,Гц',f:1,g:'freq',c:'#f59e0b'},
+    {n:'F задания',f:1,g:'freq',c:'#22c55e'},{n:'Ia,А',f:1,g:'current',c:'#ef4444'},{n:'Ib,А',f:1,g:'current',c:'#22c55e'},{n:'Ic,А',f:1,g:'current',c:'#3b82f6'},
+    {n:'Дисб.I,%',f:0,g:'other1',c:'#a3a3a3'},{n:'Ток СУ',f:1,g:'current',c:'#eab308'},{n:'Pa,кВт',f:0,g:'power',c:'#a78bfa'},{n:'Pполн,кВт',f:0,g:'power',c:'#d946ef'},
+    {n:'Загр,%',f:0,g:'load',c:'#fb923c'},{n:'P,atm',f:1,g:'pressure',c:'#06b6d4'},{n:'Тжид,Гр',f:1,g:'temp_well',c:'#14b8a6'},{n:'ТПЭД,Гр',f:1,g:'temp_ped',c:'#ef4444'},
+    {n:'Вибр.XY',f:1,g:'vibration',c:'#7c3aed'},{n:'Вибр.Z',f:1,g:'vibration',c:'#a78bfa'},{n:'Ан.Вх',f:1,g:'other2',c:'#8b5cf6'},{n:'Fт,Гц',f:0,g:'freq',c:'#ef4444'},
+    {n:'Tigbt,Гр',f:23,g:'other2',c:'#6b7280'},{n:'Tф,Гр',f:0,g:'other2',c:'#6b7280'},{n:'T на вык',f:0,g:'other2',c:'#f43f5e'},{n:'P на вык',f:2,g:'other2',c:'#fbbf24'},
+    {n:'Q на вык',f:1,g:'other2',c:'#10b981'},{n:'Rиз',f:0,g:'insulation',c:'#10b981'},{n:'Cos',f:2,g:'other2',c:'#fbbf24'},{n:'Idc',f:1,g:'current',c:'#eab308'},
+    {n:'Udc',f:0,g:'voltage_out',c:'#ec4899'},{n:'Состояние',f:11,g:'status',c:'#64748b'}
+  ],
+  35:[
+    {n:'Вращение',f:11,g:'status',c:'#64748b'},{n:'UAB,В',f:0,g:'voltage',c:'#ef4444'},{n:'UBC,В',f:0,g:'voltage',c:'#22c55e'},{n:'UAC,В',f:0,g:'voltage',c:'#3b82f6'},
+    {n:'Дисб U',f:0,g:'other1',c:'#f97316'},{n:'Тек. Угол',f:0,g:'other1',c:'#84cc16'},{n:'Uвых,В',f:0,g:'voltage_out',c:'#f59e0b'},{n:'F,Гц',f:1,g:'freq',c:'#f59e0b'},
+    {n:'F задания',f:1,g:'freq',c:'#22c55e'},{n:'Ia,А',f:1,g:'current',c:'#ef4444'},{n:'Ib,А',f:1,g:'current',c:'#22c55e'},{n:'Ic,А',f:1,g:'current',c:'#3b82f6'},
+    {n:'Дисб.I,%',f:0,g:'other1',c:'#a3a3a3'},{n:'Ток СУ',f:1,g:'current',c:'#eab308'},{n:'Pa,кВт',f:0,g:'power',c:'#a78bfa'},{n:'Pполн,кВт',f:0,g:'power',c:'#d946ef'},
+    {n:'Загр,%',f:0,g:'load',c:'#fb923c'},{n:'P на приеме,ат',f:2,g:'pressure',c:'#06b6d4'},{n:'Тжид,Гр',f:1,g:'temp_well',c:'#14b8a6'},{n:'ТПЭД обм,Гр',f:1,g:'temp_ped',c:'#ef4444'},
+    {n:'ТПЭД масло,Гр',f:1,g:'temp_ped',c:'#f97316'},{n:'Вибр.XY',f:1,g:'vibration',c:'#7c3aed'},{n:'Вибр.Z',f:1,g:'vibration',c:'#a78bfa'},{n:'Ан.Вх',f:1,g:'other2',c:'#8b5cf6'},
+    {n:'Fт,Гц',f:0,g:'freq',c:'#ef4444'},{n:'Tigbt,Гр',f:23,g:'other2',c:'#6b7280'},{n:'Tф,Гр',f:37,g:'other2',c:'#6b7280'},{n:'T на вык,Гр',f:0,g:'other2',c:'#f43f5e'},
+    {n:'P на вык,ат',f:2,g:'other2',c:'#fbbf24'},{n:'Q на вык,м3',f:1,g:'other2',c:'#10b981'},{n:'R из,кОм',f:0,g:'insulation',c:'#10b981'},{n:'Cos',f:2,g:'other2',c:'#fbbf24'},
+    {n:'Тек коэфф',f:2,g:'other2',c:'#fb923c'},{n:'Udc,В',f:0,g:'voltage_out',c:'#ec4899'},{n:'Состояние',f:11,g:'status',c:'#64748b'}
+  ],
+  36:[
+    {n:'Вращение',f:11,g:'status',c:'#64748b'},{n:'UAB,В',f:0,g:'voltage',c:'#ef4444'},{n:'UBC,В',f:0,g:'voltage',c:'#22c55e'},{n:'UAC,В',f:0,g:'voltage',c:'#3b82f6'},
+    {n:'Дисб U',f:0,g:'other1',c:'#f97316'},{n:'U ПЭД',f:0,g:'voltage',c:'#ec4899'},{n:'Uвых,В',f:0,g:'voltage_out',c:'#f59e0b'},{n:'F,Гц',f:1,g:'freq',c:'#f59e0b'},
+    {n:'F задания',f:1,g:'freq',c:'#22c55e'},{n:'Ia,А',f:1,g:'current',c:'#ef4444'},{n:'Ib,А',f:1,g:'current',c:'#22c55e'},{n:'Ic,А',f:1,g:'current',c:'#3b82f6'},
+    {n:'Дисб.I,%',f:0,g:'other1',c:'#a3a3a3'},{n:'Ток СУ',f:1,g:'current',c:'#eab308'},{n:'Pa,кВт',f:0,g:'power',c:'#a78bfa'},{n:'Pполн,кВт',f:0,g:'power',c:'#d946ef'},
+    {n:'Загр,%',f:0,g:'load',c:'#fb923c'},{n:'P на приеме,ат',f:2,g:'pressure',c:'#06b6d4'},{n:'Тжид,Гр',f:1,g:'temp_well',c:'#14b8a6'},{n:'ТПЭД,Гр',f:1,g:'temp_ped',c:'#ef4444'},
+    {n:'Т масла,Гр',f:1,g:'temp_ped',c:'#f97316'},{n:'Вибр.XY',f:1,g:'vibration',c:'#7c3aed'},{n:'Вибр.Z',f:1,g:'vibration',c:'#a78bfa'},{n:'Ан.Вх',f:1,g:'other2',c:'#8b5cf6'},
+    {n:'Fт,Гц',f:0,g:'freq',c:'#ef4444'},{n:'Tigbt,Гр',f:23,g:'other2',c:'#6b7280'},{n:'Tф,Гр',f:0,g:'other2',c:'#6b7280'},{n:'Обводн.',f:1,g:'other2',c:'#0ea5e9'},
+    {n:'T на вык,Гр',f:0,g:'other2',c:'#f43f5e'},{n:'P на вык,ат',f:2,g:'other2',c:'#fbbf24'},{n:'Q на вык,м3',f:1,g:'other2',c:'#10b981'},{n:'R из,кОм',f:0,g:'insulation',c:'#10b981'},
+    {n:'Cos',f:2,g:'other2',c:'#fbbf24'},{n:'Idc,A',f:1,g:'current',c:'#eab308'},{n:'Udc,В',f:0,g:'voltage_out',c:'#ec4899'},{n:'Состояние',f:11,g:'status',c:'#64748b'}
+  ],
+  37:[
+    {n:'Вращение',f:11,g:'status',c:'#64748b'},{n:'UAB,В',f:0,g:'voltage',c:'#ef4444'},{n:'UBC,В',f:0,g:'voltage',c:'#22c55e'},{n:'UAC,В',f:0,g:'voltage',c:'#3b82f6'},
+    {n:'Дисб U',f:0,g:'other1',c:'#f97316'},{n:'Тек. Угол',f:0,g:'other1',c:'#84cc16'},{n:'Uвых,В',f:0,g:'voltage_out',c:'#f59e0b'},{n:'F,Гц',f:1,g:'freq',c:'#f59e0b'},
+    {n:'F задания',f:1,g:'freq',c:'#22c55e'},{n:'Ia,А',f:1,g:'current',c:'#ef4444'},{n:'Ib,А',f:1,g:'current',c:'#22c55e'},{n:'Ic,А',f:1,g:'current',c:'#3b82f6'},
+    {n:'Дисб.I,%',f:0,g:'other1',c:'#a3a3a3'},{n:'Ток СУ',f:1,g:'current',c:'#eab308'},{n:'Pa,кВт',f:0,g:'power',c:'#a78bfa'},{n:'Pполн,кВт',f:0,g:'power',c:'#d946ef'},
+    {n:'Загр,%',f:0,g:'load',c:'#fb923c'},{n:'P на приеме,ат',f:2,g:'pressure',c:'#06b6d4'},{n:'P масла,ат',f:2,g:'pressure',c:'#0ea5e9'},{n:'Тжид,Гр',f:1,g:'temp_well',c:'#14b8a6'},
+    {n:'ТПЭД обм,Гр',f:1,g:'temp_ped',c:'#ef4444'},{n:'ТПЭД масло,Гр',f:1,g:'temp_ped',c:'#f97316'},{n:'Вибр.XY',f:1,g:'vibration',c:'#7c3aed'},{n:'Вибр.Z',f:1,g:'vibration',c:'#a78bfa'},
+    {n:'T на вык,Гр',f:0,g:'other2',c:'#f43f5e'},{n:'P на вык,ат',f:2,g:'other2',c:'#fbbf24'},{n:'Q на вык,м3',f:1,g:'other2',c:'#10b981'},{n:'Ан.Вх1',f:1,g:'other2',c:'#8b5cf6'},
+    {n:'Ан.Вх2',f:1,g:'other2',c:'#a78bfa'},{n:'Fт,Гц',f:0,g:'freq',c:'#ef4444'},{n:'Tigbt,Гр',f:23,g:'other2',c:'#6b7280'},{n:'Tф,Гр',f:0,g:'other2',c:'#6b7280'},
+    {n:'R из,кОм',f:0,g:'insulation',c:'#10b981'},{n:'Cos',f:2,g:'other2',c:'#fbbf24'},{n:'Тек коэфф',f:2,g:'other2',c:'#fb923c'},{n:'Udc,В',f:0,g:'voltage_out',c:'#ec4899'},
+    {n:'Состояние',f:11,g:'status',c:'#64748b'}
+  ]
+};
+
+// Format value from raw uint16 using format_id
+function fmtVal(raw, fid){
+  if(raw>=65534) return null;
+  switch(fid){
+    case 0: return raw;
+    case 1: return raw/10;
+    case 2: return raw/100;
+    case 3: return raw/1000;
+    case 4: { const s=(raw>>15)&1, v=raw&0x7FFF; return s?-(v/10):v/10; }
+    case 11: return raw;
+    case 23: return (raw>>8)&0xFF;
+    case 37: return (raw>>8)&0xFF;
+    case 41: return raw>=0x8000?-((0x10000-raw)/10):raw/10;
+    case 42: return raw/1000;
+    default: return raw;
+  }
+}
+function fmtDiv(fid){ return fid===1||fid===4||fid===41?10:fid===2?100:fid===3||fid===42?1000:(fid===23||fid===37)?-1:1; }
+
+// ════════════════════════════════════════
+// BUILD PARAM DEFS — dynamic from nParams
+// ════════════════════════════════════════
+let P=[], GROUPS=[], PbyId={};
+let SEM_IDX = {}; // {freq, fzad, load, state, pIn, tPed, tOil} — semantic indices for journal
+
+function buildParamDefs(){
+  const np=D.nParams;
+  SEM_IDX={freq:-1,fzad:-1,load:-1,state:-1,pIn:-1,tPed:-1,tOil:-1};
+  
+  // State is always the last parameter
+  const stateIdx=np-1;
+  SEM_IDX.state=stateIdx;
+
+  // Find config or build generic
+  let cfg=PCFG[np];
+  if(!cfg){
+    // Try to find closest config
+    const keys=Object.keys(PCFG).map(Number).sort((a,b)=>a-b);
+    // For unknown param counts, build from closest smaller + pad
+    cfg=[];
+    const closest=keys.reduce((best,k)=>Math.abs(k-np)<Math.abs(best-np)?k:best,keys[0]);
+    const base=PCFG[closest];
+    for(let i=0;i<np;i++){
+      if(i<base.length) cfg.push(base[i]);
+      else if(i===np-1) cfg.push({n:'Состояние',f:11,g:'status',c:'#64748b'});
+      else cfg.push({n:'Парам.'+i,f:0,g:'other2',c:'#6b7280'});
+    }
+  }
+
+  P=[]; PbyId={};
+  for(let i=0;i<Math.min(cfg.length,np);i++){
+    const c=cfg[i];
+    const div=fmtDiv(c.f);
+    const pd={id:i,name:c.n,unit:extractUnit(c.n),c:c.c,div:div>0?div:1,fmt:c.f,g:c.g};
+    P.push(pd); PbyId[i]=pd;
+    
+    // Detect semantic indices
+    const nl=c.n.toLowerCase();
+    if((nl.startsWith('f,') || nl.startsWith('f вых')) && SEM_IDX.freq<0) SEM_IDX.freq=i;
+    if(nl.includes('f задан') && SEM_IDX.fzad<0) SEM_IDX.fzad=i;
+    if(nl.includes('загр') && SEM_IDX.load<0) SEM_IDX.load=i;
+    if((nl.includes('p на приеме')||nl==='p,atm'||nl.includes('p прием')||nl==='p,atm') && SEM_IDX.pIn<0) SEM_IDX.pIn=i;
+    if((nl.includes('тпэд обм')||nl==='тпэд,гр'||(nl.startsWith('тпэд')&&!nl.includes('масл'))) && SEM_IDX.tPed<0) SEM_IDX.tPed=i;
+    if(nl.includes('масл') && (nl.includes('тпэд')||nl.includes('т масл')) && SEM_IDX.tOil<0) SEM_IDX.tOil=i;
+  }
+  // Fallback: if tPed not found but there's a single ТПЭД, use it
+  if(SEM_IDX.tPed<0){
+    for(let i=0;i<P.length;i++){
+      if(P[i].name.toLowerCase().startsWith('тпэд')){SEM_IDX.tPed=i;break;}
+    }
+  }
+
+  // Build groups for sidebar
+  const gmap=new Map();
+  for(const p of P){
+    if(p.g==='status') continue; // Don't show state/rotation in charts
+    if(!gmap.has(p.g))gmap.set(p.g,[]);
+    gmap.get(p.g).push(p.id);
+  }
+  const gdefs=[
+    {g:'freq',label:'Частота',color:'#f59e0b',primary:true},
+    {g:'load',label:'Загрузка двигателя',color:'#fb923c',primary:true},
+    {g:'pressure',label:'Давление',color:'#06b6d4',primary:true},
+    {g:'temp_ped',label:'Темп. ПЭД',color:'#f97316',primary:true},
+    {g:'insulation',label:'R изоляции',color:'#10b981',primary:true},
+    {g:'voltage',label:'Напряжение (AB,BC,AC)',color:'#ef4444'},
+    {g:'voltage_out',label:'Uвых / Udc',color:'#ec4899'},
+    {g:'current',label:'Токи (A,B,C) / СУ',color:'#eab308'},
+    {g:'temp_well',label:'Т жидкости',color:'#14b8a6'},
+    {g:'power',label:'Мощность (Pa/Pполн)',color:'#a78bfa'},
+    {g:'vibration',label:'Вибрация',color:'#7c3aed'},
+    {g:'other1',label:'Дисбаланс / угол',color:'#84cc16'},
+    {g:'other2',label:'Прочие',color:'#6b7280'},
+  ];
+  GROUPS=[];
+  for(const gd of gdefs){const ids=gmap.get(gd.g);if(ids&&ids.length)GROUPS.push({key:gd.g,label:gd.label,ids,color:gd.color,primary:!!gd.primary});}
+  const def=[];
+  for(const g of GROUPS)if(g.primary)def.push(...g.ids);
+  return new Set(def);
+}
+
+function extractUnit(name){
+  const m=name.match(/,\s*(\S+)$/);
+  if(m) return m[1];
+  if(name.includes('Гц')) return 'Гц';
+  if(name.includes('кВт')) return 'кВт';
+  if(name.includes('кОм')) return 'кОм';
+  if(name.includes('ат')) return 'ат';
+  if(name.includes('Гр')||name.includes('°C')) return '°C';
+  if(name.includes('%')) return '%';
+  return '';
+}
+
+
+
+let D = null;
+let active = new Set();
+let vStart=0, vEnd=0;
+let splitMode = false;
+let dragging=false, dragX=0;
+const panelHeights = {};
+
+const dz=document.getElementById('dz'), fi=document.getElementById('fileInput');
+const dragOvl=document.getElementById('dragOverlay');
+let dragCnt=0;
+
+document.addEventListener('dragenter',e=>{e.preventDefault();dragCnt++;dragOvl.style.display='flex';});
+document.addEventListener('dragleave',e=>{e.preventDefault();dragCnt--;if(dragCnt<=0){dragCnt=0;dragOvl.style.display='none';}});
+document.addEventListener('dragover',e=>{e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect='copy';});
+document.addEventListener('drop',e=>{
+  e.preventDefault();e.stopPropagation();
+  dragCnt=0;dragOvl.style.display='none';
+  if(e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+});
+
+dz.addEventListener('click',()=>fi.click());
+fi.addEventListener('change',e=>{if(e.target.files.length)loadFile(e.target.files[0])});
+
+async function loadFile(f){
+  if(f.name.endsWith('.rar')){alert('Распакуйте RAR и загрузите .arh файл');return}
+  document.getElementById('load').style.display='flex';
+  try{
+    const txt=await f.text();
+    D=parseARH(txt,f.name);
+    vStart=0; vEnd=D.n-1;
+    active=buildParamDefs();
+    splitMode=true;
+    allEvents=[];
+    initApp();
+  }catch(e){alert('Ошибка: '+e.message);console.error(e)}
+  document.getElementById('load').style.display='none';
+}
+
+function parseARH(text, fname){
+  const ci=text.indexOf(':');
+  const hdr=text.substring(0,ci), body=text.substring(ci+1);
+  const hp=hdr.split('-');
+  const header={pad:parseInt(hp[3],16),well:parseInt(hp[4],16),serial:parseInt(hp[7],16)};
+  const segs=body.replace(/:/g,'.').split('.');
+  let mi=0,ml=0;
+  for(let i=0;i<segs.length;i++) if(segs[i].length>ml){ml=segs[i].length;mi=i}
+  const mh=segs[mi];
+
+  let nParams=35;
+  for(let np=26;np<=100;np++){
+    const rh=20+np*4;
+    if(mh.length%rh===0){nParams=np;break}
+  }
+  const rl=20+nParams*4;
+  const n=Math.floor(mh.length/rl);
+  console.log('Detected '+nParams+' params, rec_hex='+rl+', '+n+' records');
+
+  // Extract base year from filename (e.g. "...2026_02_17...") or use current year
+  let baseYear = new Date().getFullYear();
+  if(fname){
+    const ym = fname.match(/20(\d\d)[_\-](\d\d)[_\-]\d\d/);
+    if(ym) baseYear = 2000+parseInt(ym[1]);
+  }
+
+  const ts=new Array(n);
+  const params=new Array(nParams);
+  for(let j=0;j<nParams;j++) params[j]=new Uint16Array(n);
+
+  let curYear = baseYear;
+  let prevMonth = -1;
+
+  for(let r=0;r<n;r++){
+    const o=r*rl;
+    const mo=parseInt(mh.substr(o+8,2),16);
+    const dy=parseInt(mh.substr(o+10,2),16);
+    const hr=parseInt(mh.substr(o+14,2),16);
+    const mn=parseInt(mh.substr(o+16,2),16);
+    const sc=parseInt(mh.substr(o+18,2),16);
+    if(prevMonth===12 && mo===1) curYear++;
+    prevMonth=mo;
+    ts[r]={year:curYear,month:mo,day:dy,hour:hr,minute:mn,sec:sc};
+    for(let j=0;j<nParams;j++) params[j][r]=parseInt(mh.substr(o+20+j*4,4),16);
+  }
+
+  return {ts,params,header,n,nParams,fname:fname||''};
+}
+
+// ═══════════════════════════════════════════════
+function fmtTs(t){return S(t.day)+'.'+S(t.month)+'.'+t.year+' '+S(t.hour)+':'+S(t.minute)+':'+S(t.sec)}
+function fmtShort(t){return S(t.day)+'.'+S(t.month)+'.'+t.year+' '+S(t.hour)+':'+S(t.minute)}
+function S(v){return String(v).padStart(2,'0')}
+
+// Big loader — only for initial file parsing
+function showLoading(msg){
+  document.getElementById('loadMsg').textContent=msg||'Загрузка...';
+  document.getElementById('load').style.display='flex';
+}
+function hideLoading(){
+  document.getElementById('load').style.display='none';
+}
+// Small cursor spinner — for UI operations
+let _csMouseX=window.innerWidth/2, _csMouseY=window.innerHeight/2;
+document.addEventListener('mousemove',e=>{_csMouseX=e.clientX;_csMouseY=e.clientY;});
+function showSpinner(msg){
+  const el=document.getElementById('cursorSpinner');
+  document.getElementById('cursorSpinnerMsg').textContent=msg||'Загрузка...';
+  el.style.display='flex';
+  _positionSpinner();
+}
+function _positionSpinner(){
+  const el=document.getElementById('cursorSpinner');
+  const x=_csMouseX+18, y=_csMouseY+18;
+  const w=el.offsetWidth||160, h=el.offsetHeight||32;
+  el.style.left=Math.min(x, window.innerWidth-w-8)+'px';
+  el.style.top=Math.min(y, window.innerHeight-h-8)+'px';
+}
+function hideSpinner(){
+  document.getElementById('cursorSpinner').style.display='none';
+}
+
+function initApp(){
+  document.getElementById('dzWrap').style.display='none';
+  document.getElementById('app').classList.add('active');
+
+  // Extract well/pad/su from filename if header values seem wrong
+  const fname = D.fname||'';
+  const fnWell = (fname.match(/[_-]?(?:Скв|Skv)[_-](\d+)/i)||fname.match(/_(\d{4,6})_\d{4}_\d{2}_\d{2}/)||[])[1]||D.header.well;
+  const fnPad  = (fname.match(/[_-]?(?:Куст|Kust)[_-]([\w-]+)/i)||[])[1]||D.header.pad;
+  const fnSU   = (fname.match(/СУ[_-](\d+)/i)||fname.match(/SU[_-](\d+)/i)||[])[1]||D.header.serial;
+  const t0=D.ts[0], tN=D.ts[D.n-1];
+  document.getElementById('hdrInfo').innerHTML=
+    '<div class="i"><span class="l">Скв:</span><span class="v">'+fnWell+'</span></div>'+
+    '<div class="i"><span class="l">Куст:</span><span class="v">'+fnPad+'</span></div>'+
+    '<div class="i"><span class="l">СУ:</span><span class="v">'+fnSU+'</span></div>'+
+    '<div class="i"><span class="l">Записей:</span><span class="v">'+D.n.toLocaleString()+'</span></div>'+
+    '<div class="i"><span class="l">'+fmtShort(t0)+'</span><span class="v">→</span><span class="l">'+fmtShort(tN)+'</span></div>';
+
+  buildSidebar();
+  render();
+  setupGlobalMouse();
+}
+
+function buildSidebar(){
+  const s=document.getElementById('side');
+  s.innerHTML='';
+
+  function addTitle(text){ const d=document.createElement('div');d.className='side-title';d.textContent=text;s.appendChild(d); }
+  function addSep(){ const d=document.createElement('div');d.className='side-sep';s.appendChild(d); }
+
+  addTitle('Режим отображения');
+  const mr=document.createElement('div');mr.className='mode-row';
+  const btnOvr=document.createElement('button');btnOvr.className='mode-btn'+(splitMode?'':' active');btnOvr.id='modeOverlay';btnOvr.textContent='Наложение';
+  const btnSpl=document.createElement('button');btnSpl.className='mode-btn'+(splitMode?' active':'');btnSpl.id='modeSplit';btnSpl.textContent='Раздельный';
+  btnOvr.onclick=()=>{splitMode=false;updateSidebarState();render()};
+  btnSpl.onclick=()=>{splitMode=true;updateSidebarState();render()};
+  mr.appendChild(btnOvr);mr.appendChild(btnSpl);
+  s.appendChild(mr);
+
+  addSep(); addTitle('Навигация');
+  const zr=document.createElement('div');zr.className='zoom-row';
+  const zBtns=[
+    {id:'zIn',txt:'+',fn:()=>zoom(0.5)},
+    {id:'zOut',txt:'−',fn:()=>zoom(2)},
+    {id:'zReset',txt:'⟲',fn:()=>{vStart=0;vEnd=D.n-1;render()}},
+    {id:'navL',txt:'◀',fn:()=>pan(-0.25)},
+    {id:'navR',txt:'▶',fn:()=>pan(0.25)},
+  ];
+  for(const z of zBtns){
+    const b=document.createElement('button');b.className='z-btn';b.id=z.id;b.textContent=z.txt;
+    if(z.id==='zReset') b.style.fontSize='12px';
+    b.onclick=z.fn;
+    zr.appendChild(b);
+  }
+  s.appendChild(zr);
+  const rt=document.createElement('div');rt.className='range-txt';rt.id='rangeTxt';rt.textContent='—';
+  s.appendChild(rt);
+
+  addSep(); addTitle('⭐ Основные параметры');
+
+  let addedPrimary=false;
+  for(const g of GROUPS){
+    if(!g.primary && !addedPrimary){
+      addedPrimary=true;
+      addSep(); addTitle('Все параметры');
+    }
+    const gb=document.createElement('button');
+    gb.className='grp-btn';
+    gb.dataset.gkey=g.key;
+    gb.innerHTML='<span class="dot" style="background:'+g.color+'"></span>'+g.label+'<span class="cnt">'+g.ids.length+'</span>';
+    gb.addEventListener('click',()=>{
+      const allOn = g.ids.every(id=>active.has(id));
+      if(allOn){ for(const id of g.ids) active.delete(id); }
+      else { for(const id of g.ids) active.add(id); }
+      updateSidebarState();
+      render();
+    });
+    s.appendChild(gb);
+
+    for(const pid of g.ids){
+      const pd=PbyId[pid];
+      const pb=document.createElement('div');
+      pb.className='p-btn'+(active.has(pid)?' on':'');
+      pb.dataset.pid=pid;
+      pb.innerHTML='<span class="cb">'+(active.has(pid)?'✓':'')+'</span>'+
+        '<span class="clr" style="background:'+pd.c+'"></span>'+
+        '<span>'+pd.name+'</span>';
+      pb.addEventListener('click',e=>{
+        e.stopPropagation();
+        if(active.has(pid)) active.delete(pid); else active.add(pid);
+        updateSidebarState();
+        render();
+      });
+      s.appendChild(pb);
+    }
+  }
+
+  // Wire header journal button
+  const hdrJBtn=document.getElementById('journalBtnHdr');
+  if(hdrJBtn){
+    hdrJBtn.addEventListener('click',()=>{
+      const tw=document.getElementById('tableWrap');
+      if(tw){
+        const open=tw.classList.toggle('open');
+        hdrJBtn.classList.toggle('active',open);
+        if(open){
+          showSpinner('Построение журнала...');
+          function _openJournal(){
+            buildEventsTable();
+            hideSpinner();
+            _wireVsScroll();
+          }
+          if(allEvents.length===0){ runDetectWorker(_openJournal); }
+          else { setTimeout(_openJournal, 30); }
+        }
+      }
+    });
+  }
+}
+
+function updateSidebarState(){
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(splitMode?'modeSplit':'modeOverlay')?.classList.add('active');
+
+  document.querySelectorAll('.grp-btn').forEach(b=>{
+    const g=GROUPS.find(g=>g.key===b.dataset.gkey);
+    const isActive=g&&g.ids.every(id=>active.has(id));
+    b.classList.toggle('active',!!isActive);
+  });
+
+  document.querySelectorAll('.p-btn').forEach(b=>{
+    const pid=+b.dataset.pid;
+    const on=active.has(pid);
+    b.classList.toggle('on',on);
+    b.querySelector('.cb').textContent=on?'✓':'';
+  });
+
+  const rt=document.getElementById('rangeTxt');
+  if(rt&&D) rt.innerHTML=fmtShort(D.ts[vStart])+'<br>'+fmtShort(D.ts[vEnd]);
+}
+
+function render(){
+  updateSidebarState();
+  const main=document.getElementById('main');
+  const ids=[...active].sort((a,b)=>a-b);
+  main.innerHTML='';
+
+  if(ids.length===0){
+    main.innerHTML='<div class="empty-msg">Выберите параметры слева</div>';
+    return;
+  }
+
+  if(!splitMode){
+    const panel=makeChartPanel(ids,true);
+    main.appendChild(panel);
+    requestAnimationFrame(()=>drawOnCanvas(panel,ids));
+  } else {
+    const grouped=new Map();
+    for(const id of ids){
+      const pd=PbyId[id];
+      if(!grouped.has(pd.g)) grouped.set(pd.g,[]);
+      grouped.get(pd.g).push(id);
+    }
+    for(const [gKey,gIds] of grouped){
+      const panel=makeChartPanel(gIds,false);
+      main.appendChild(panel);
+    }
+    requestAnimationFrame(()=>{
+      main.querySelectorAll('.cpanel').forEach(panel=>{
+        const pids=JSON.parse(panel.dataset.pids);
+        drawOnCanvas(panel,pids);
+      });
+    });
+  }
+}
+
+function makeChartPanel(ids, isFull){
+  const panel=document.createElement('div');
+  const panelKey=ids.join(',');
+  panel.className='cpanel'+(isFull?' full':'');
+  panel.dataset.pids=JSON.stringify(ids);
+  panel.dataset.pkey=panelKey;
+
+  if(panelHeights[panelKey]){
+    panel.style.height=panelHeights[panelKey]+'px';
+    panel.style.flex='none';
+  }
+
+  const hdr=document.createElement('div');hdr.className='cpanel-hdr';
+  let title='';
+  if(ids.length===1){
+    const pd=PbyId[ids[0]];
+    title=pd.name+(pd.unit?' ('+pd.unit+')':'');
+  } else {
+    const g=GROUPS.find(g=>ids.every(id=>g.ids.includes(id))&&g.ids.every(id=>ids.includes(id)));
+    title=g?g.label:(ids.length+' параметров');
+  }
+  hdr.innerHTML='<span class="cpanel-title">'+title+'</span>'+
+    '<div class="cpanel-legend">'+ids.map(id=>'<span class="cleg"><span class="cleg-d" style="background:'+PbyId[id].c+'"></span>'+PbyId[id].name+'</span>').join('')+'</div>';
+  panel.appendChild(hdr);
+
+  const cw=document.createElement('div');cw.className='canvas-wrap';
+  const canvas=document.createElement('canvas');
+  cw.appendChild(canvas);
+  panel.appendChild(cw);
+
+  canvas.addEventListener('mousemove',e=>showTip(e,canvas,ids));
+  canvas.addEventListener('mouseleave',()=>{document.getElementById('tip').style.display='none'});
+  canvas.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.deltaY>0?1.3:0.7,e,canvas)},{passive:false});
+  canvas.addEventListener('mousedown',e=>{dragging=true;dragX=e.clientX;canvas.style.cursor='grabbing'});
+  canvas.addEventListener('dblclick',e=>openJournalAtClick(e,canvas));
+
+  const rh=document.createElement('div');
+  rh.className='cpanel-resize';
+  rh.addEventListener('mousedown',e=>{
+    e.preventDefault(); e.stopPropagation();
+    const startY=e.clientY;
+    const startH=panel.offsetHeight;
+    rh.classList.add('dragging');
+    panel.style.flex='none';
+    function onMove(ev){
+      const dy=ev.clientY-startY;
+      const newH=Math.max(100,startH+dy);
+      panel.style.height=newH+'px';
+      panelHeights[panelKey]=newH;
+      drawOnCanvas(panel,ids);
+    }
+    function onUp(){
+      rh.classList.remove('dragging');
+      window.removeEventListener('mousemove',onMove);
+      window.removeEventListener('mouseup',onUp);
+    }
+    window.addEventListener('mousemove',onMove);
+    window.addEventListener('mouseup',onUp);
+  });
+  panel.appendChild(rh);
+
+  return panel;
+}
+
+function getVal(pid, i){
+  const raw=D.params[pid][i];
+  if(raw>=65534) return null;
+  const pd=PbyId[pid];
+  if(!pd) return raw;
+  return fmtVal(raw, pd.fmt);
+}
+
+// ════════════════════════════════════════
+// NICE STEP HELPERS for adaptive grid
+// ════════════════════════════════════════
+function niceStep(range,maxTicks){
+  // Returns a "nice" step value (1,2,5,10,20,50,100...) for axis labels
+  const rough=range/maxTicks;
+  const mag=Math.pow(10,Math.floor(Math.log10(rough)));
+  const norm=rough/mag;
+  let nice;
+  if(norm<=1.5) nice=1;
+  else if(norm<=3.5) nice=2;
+  else if(norm<=7.5) nice=5;
+  else nice=10;
+  return nice*mag;
+}
+function niceStepInt(range,maxTicks){
+  // Same but returns integer step for index-based X axis
+  const s=niceStep(range,maxTicks);
+  return Math.max(1,Math.round(s));
+}
+
+// ════════════════════════════════════════
+// DRAWING WITH MIN/MAX DOWNSAMPLING
+// Ensures ALL peaks and spikes are visible at any zoom level
+// ════════════════════════════════════════
+// Fast chart value getter (handles packed formats 23/37)
+function chartVal(raw, pd){
+  if(raw>=65534) return null;
+  const f=pd.fmt;
+  if(f===23||f===37) return (raw>>8)&0xFF;
+  if(f===4){ const s=(raw>>15)&1,v=raw&0x7FFF; return s?-(v/10):v/10; }
+  if(f===41) return raw>=0x8000?-((0x10000-raw)/10):raw/10;
+  return raw/pd.div;
+}
+
+function drawOnCanvas(panel,ids){
+  const canvas=panel.querySelector('canvas');
+  const wrap=panel.querySelector('.canvas-wrap');
+  if(!canvas||!wrap) return;
+  const ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const W=wrap.clientWidth, H=wrap.clientHeight;
+  if(W<10||H<10) return;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  ctx.scale(dpr,dpr);
+
+  const mg={top:8,right:50,bottom:30,left:55};
+  const w=W-mg.left-mg.right, h=H-mg.top-mg.bottom;
+  const start=vStart, end=vEnd, range=end-start;
+  if(range<1) return;
+
+  // ── Y range: scan ALL points including peaks ──
+  let yMin=Infinity,yMax=-Infinity;
+  for(const pid of ids){
+    const arr=D.params[pid];
+    const pd=PbyId[pid];
+    for(let i=start;i<=end;i++){
+      const raw=arr[i];
+      if(raw>=65534) continue;
+      const v=chartVal(raw,pd);
+      if(v===null) continue;
+      if(v<yMin)yMin=v; if(v>yMax)yMax=v;
+    }
+  }
+  if(yMin===Infinity){yMin=0;yMax=100}
+  const yPad=(yMax-yMin)*0.08||10;
+  yMin-=yPad; yMax+=yPad;
+
+  // ── Adaptive Grid ──
+  // Picks "nice" step values and adapts tick count to available space
+  ctx.lineWidth=1;
+  ctx.font='10px "JetBrains Mono",monospace';
+
+  // --- Y axis: adaptive nice ticks ---
+  const yRange=yMax-yMin;
+  const yMinSpacingPx=32; // minimum pixels between Y labels
+  const yMaxTicks=Math.max(3,Math.floor(h/yMinSpacingPx));
+  const yNiceStep=niceStep(yRange,yMaxTicks);
+  const yTickStart=Math.ceil(yMin/yNiceStep)*yNiceStep;
+  const yDecimals=yNiceStep>=10?0:yNiceStep>=1?1:2;
+
+  ctx.textAlign='right';
+  for(let val=yTickStart;val<=yMax;val+=yNiceStep){
+    const y=mg.top+h-((val-yMin)/yRange)*h;
+    if(y<mg.top-2||y>mg.top+h+2) continue;
+    ctx.strokeStyle='rgba(30,41,59,0.5)';
+    ctx.beginPath();ctx.moveTo(mg.left,y);ctx.lineTo(mg.left+w,y);ctx.stroke();
+    ctx.fillStyle='#4a5568';
+    ctx.fillText(val.toFixed(yDecimals),mg.left-6,y+3);
+  }
+
+  // --- X axis: adaptive time ticks ---
+  const xLabelW=110; // approx width of date label in px
+  const xMaxTicks=Math.max(2,Math.floor(w/xLabelW));
+  const xTickCount=Math.min(xMaxTicks,range);
+  const xNiceStep=Math.max(1,niceStepInt(range,xTickCount));
+
+  ctx.textAlign='center';
+  // Find a nice starting index aligned to xNiceStep
+  const xTickStart2=Math.ceil(start/xNiceStep)*xNiceStep;
+  for(let idx=xTickStart2;idx<=end;idx+=xNiceStep){
+    const x=mg.left+((idx-start)/range)*w;
+    if(x<mg.left-5||x>mg.left+w+5) continue;
+    ctx.strokeStyle='rgba(30,41,59,0.5)';
+    ctx.beginPath();ctx.moveTo(x,mg.top);ctx.lineTo(x,mg.top+h);ctx.stroke();
+    if(idx>=0&&idx<D.n){
+      ctx.fillStyle='#4a5568';
+      // Show more detail when zoomed in
+      const t=D.ts[idx];
+      let label;
+      if(range<200) label=S(t.day)+'.'+S(t.month)+' '+S(t.hour)+':'+S(t.minute)+':'+S(t.sec);
+      else if(range<5000) label=S(t.day)+'.'+S(t.month)+'.'+t.year+' '+S(t.hour)+':'+S(t.minute);
+      else label=S(t.day)+'.'+S(t.month)+'.'+t.year;
+      ctx.fillText(label,x,mg.top+h+14);
+    }
+  }
+
+  // ── Lines with MIN/MAX downsampling ──
+  // For each pixel column, find the min and max values in the bucket.
+  // This guarantees that spikes/peaks are NEVER lost regardless of zoom.
+  const pixelCount=Math.max(1,Math.floor(w));
+  const step=range/pixelCount; // samples per pixel (can be fractional)
+
+  for(const pid of ids){
+    const pd=PbyId[pid];
+    const arr=D.params[pid];
+    ctx.strokeStyle=pd.c;
+    ctx.lineWidth=ids.length>4?1:1.4;
+
+    if(step<=1.5){
+      // Few enough points — draw every point directly (no downsampling needed)
+      ctx.beginPath();
+      let started=false;
+      for(let i=start;i<=end;i++){
+        const raw=arr[i];
+        if(raw>=65534){started=false;continue}
+        const v=chartVal(raw,pd);
+        if(v===null){started=false;continue}
+        const x=mg.left+((i-start)/range)*w;
+        const y=mg.top+h-((v-yMin)/(yMax-yMin))*h;
+        if(!started){ctx.moveTo(x,y);started=true}else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    } else {
+      // Min/Max downsampling: for each pixel bucket, emit min and max points
+      // This ensures peaks are always visible
+      const points=[]; // array of {x, yMin, yMax, hasData}
+      for(let px=0;px<pixelCount;px++){
+        const bStart=Math.floor(start+px*step);
+        const bEnd=Math.min(end,Math.floor(start+(px+1)*step));
+        let bMin=Infinity, bMax=-Infinity, bFirst=null, bLast=null, hasData=false;
+        for(let i=bStart;i<=bEnd;i++){
+          const raw=arr[i];
+          if(raw>=65534) continue;
+          const v=chartVal(raw,pd);
+          if(v===null) continue;
+          if(!hasData) bFirst=v;
+          bLast=v;
+          if(v<bMin) bMin=v;
+          if(v>bMax) bMax=v;
+          hasData=true;
+        }
+        if(hasData){
+          points.push({px,bMin,bMax,bFirst,bLast,hasData:true});
+        } else {
+          points.push({px,hasData:false});
+        }
+      }
+
+      // Draw: for each bucket, draw line through first→min→max→last (or first→max→min→last)
+      // to preserve shape. This creates a filled-looking line that captures all extremes.
+      ctx.beginPath();
+      let started=false;
+      for(let k=0;k<points.length;k++){
+        const p=points[k];
+        if(!p.hasData){started=false;continue}
+        const x=mg.left+(p.px/pixelCount)*w;
+        const toY=v=>mg.top+h-((v-yMin)/(yMax-yMin))*h;
+
+        if(!started){
+          ctx.moveTo(x,toY(p.bFirst));
+          started=true;
+        }
+        // Draw to min then max (or max then min) to capture the full range
+        if(p.bFirst<=p.bLast){
+          // trending up: go min first then max
+          ctx.lineTo(x,toY(p.bMin));
+          ctx.lineTo(x,toY(p.bMax));
+        } else {
+          // trending down: go max first then min
+          ctx.lineTo(x,toY(p.bMax));
+          ctx.lineTo(x,toY(p.bMin));
+        }
+        ctx.lineTo(x,toY(p.bLast));
+      }
+      ctx.stroke();
+    }
+  }
+}
+
+// ════════════════════════════════════════
+// DOUBLE-CLICK → OPEN JOURNAL AT TIMESTAMP
+// ════════════════════════════════════════
+function openJournalAtClick(e, canvas){
+  if(!D) return;
+
+  // Use the exact index that was under the cursor when tooltip was shown
+  const clickIdx = lastHoverIdx >= 0 ? lastHoverIdx : (() => {
+    const rect=canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left;
+    const mg={left:55,right:50};
+    const w=rect.width-mg.left-mg.right;
+    const frac=(mx-mg.left)/w;
+    return (frac<0||frac>1) ? -1 : Math.round(vStart+frac*(vEnd-vStart));
+  })();
+  if(clickIdx<0||clickIdx>=D.n) return;
+
+  const tw=document.getElementById('tableWrap');
+  const hb=document.getElementById('journalBtnHdr');
+  if(!tw) return;
+
+  // Find closest event by record index
+  const filtered=evFilterType==='all'?allEvents:allEvents.filter(ev=>ev.type===evFilterType);
+  let bestRow=-1, bestDiff=Infinity;
+  filtered.forEach((ev,ri)=>{
+    const diff=Math.abs(ev.i - clickIdx);
+    if(diff<bestDiff){bestDiff=diff;bestRow=ri;}
+  });
+
+  // Open journal
+  tw.classList.add('open');
+  if(hb) hb.classList.add('active');
+
+  function _openAndScroll(){
+    buildEventsTable(bestRow);
+    hideSpinner();
+    // Wire scroll handler for virtual scroll
+    _wireVsScroll();
+  }
+
+  showSpinner('Построение журнала...');
+  if(allEvents.length===0){
+    runDetectWorker(()=>{ _openAndScroll(); });
+  } else {
+    setTimeout(_openAndScroll, 30);
+  }
+}
+
+// ════════════════════════════════════════
+// TOOLTIP
+// ════════════════════════════════════════
+function showTip(e,canvas,ids){
+  const tip=document.getElementById('tip');
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left;
+  const mg={left:55,right:50};
+  const w=rect.width-mg.left-mg.right;
+  const frac=(mx-mg.left)/w;
+  if(frac<0||frac>1){tip.style.display='none';return}
+  const idx=Math.round(vStart+frac*(vEnd-vStart));
+  if(idx<0||idx>=D.n){tip.style.display='none';return}
+  lastHoverIdx=idx;
+  const t=D.ts[idx];
+  let rows='';
+  for(const pid of ids){
+    const pd=PbyId[pid];
+    if(!pd) continue;
+    const raw=D.params[pid][idx];
+    const v=fmtVal(raw, pd.fmt);
+    const display=v===null?'—':(Math.abs(v)>=100?v.toFixed(0):v.toFixed(1));
+    rows+='<div class="tip-r"><span class="tip-n" style="color:'+pd.c+'">'+pd.name+'</span><span class="tip-v">'+display+' '+pd.unit+'</span></div>';
+  }
+  tip.innerHTML='<div class="tip-t">'+fmtTs(t)+'</div>'+rows;
+  tip.style.display='block';
+  let tx=e.clientX+14, ty=e.clientY-10;
+  if(tx+180>window.innerWidth) tx=e.clientX-190;
+  if(ty+tip.offsetHeight>window.innerHeight) ty=window.innerHeight-tip.offsetHeight-8;
+  tip.style.left=tx+'px'; tip.style.top=ty+'px';
+}
+
+// ════════════════════════════════════════
+// ZOOM / PAN
+// ════════════════════════════════════════
+function zoom(f){
+  const range=vEnd-vStart, center=(vStart+vEnd)/2;
+  const nr=Math.max(20,Math.min(D.n-1,range*f));
+  vStart=Math.max(0,Math.round(center-nr/2));
+  vEnd=Math.min(D.n-1,Math.round(center+nr/2));
+  render();
+}
+function zoomAt(f,e,canvas){
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left;
+  const mg={left:55,right:50};
+  const w=rect.width-mg.left-mg.right;
+  const frac=Math.max(0,Math.min(1,(mx-mg.left)/w));
+  const range=vEnd-vStart;
+  const pivot=vStart+frac*range;
+  const nr=Math.max(20,Math.min(D.n-1,range*f));
+  vStart=Math.max(0,Math.round(pivot-frac*nr));
+  vEnd=Math.min(D.n-1,Math.round(pivot+(1-frac)*nr));
+  render();
+}
+function pan(fr){
+  const range=vEnd-vStart, sh=Math.round(range*fr);
+  let ns=vStart+sh, ne=vEnd+sh;
+  if(ns<0){ne-=ns;ns=0}
+  if(ne>=D.n){ns-=(ne-D.n+1);ne=D.n-1}
+  vStart=Math.max(0,ns); vEnd=Math.min(D.n-1,ne);
+  render();
+}
+
+function setupGlobalMouse(){
+  window.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    const dx=e.clientX-dragX; dragX=e.clientX;
+    const range=vEnd-vStart;
+    const mainW=document.getElementById('main').clientWidth||800;
+    const shift=-dx/mainW*range;
+    let ns=vStart+Math.round(shift), ne=vEnd+Math.round(shift);
+    if(ns<0){ne-=ns;ns=0}
+    if(ne>=D.n){ns-=(ne-D.n+1);ne=D.n-1}
+    vStart=Math.max(0,ns); vEnd=Math.min(D.n-1,ne);
+    render();
+  });
+  window.addEventListener('mouseup',()=>{
+    dragging=false;
+    document.querySelectorAll('canvas').forEach(c=>c.style.cursor='crosshair');
+  });
+}
+
+window.addEventListener('resize',()=>{if(D)render()});
+
+// ════════════════════════════════════════
+// EVENTS DETECTION (Web Worker) & VIRTUAL SCROLL TABLE
+// ════════════════════════════════════════
+let allEvents=[];
+let evFilterType='all';
+let lastHoverIdx=-1;
+let evFiltered=[];      // currently filtered events
+let vsRowH=28;          // virtual scroll row height px
+let vsVisCount=0;       // how many rows fit in viewport
+let vsScrollTop=0;      // current scroll position
+let vsHighlightRow=-1;  // row index to highlight
+
+// ── Web Worker code as Blob ──────────────────────────────────────────────────
+const WORKER_CODE=`
+self.onmessage=function(e){
+  const {ts,params,semIdx,n,nParams,ENUM3,ENUM2,ENUM26}=e.data;
+  const iF=semIdx.freq, iFz=semIdx.fzad, iLd=semIdx.load, iSt=semIdx.state;
+  const iPi=semIdx.pIn, iTo=semIdx.tPed, iTm=semIdx.tOil;
+  if(iSt<0){self.postMessage({events:[]});return;}
+
+  const state=params[iSt];
+  const freq=iF>=0?params[iF]:null;
+  const fzad=iFz>=0?params[iFz]:null;
+  const load=iLd>=0?params[iLd]:null;
+  const pIn=iPi>=0?params[iPi]:null;
+  const tPed=iTo>=0?params[iTo]:null;
+  const tOil=iTm>=0?params[iTm]:null;
+  const events=[];
+
+  // Decode state: lo-byte of last param is index in ENUM3
+  function getState(raw){
+    if(raw===undefined||raw>=65534) return {lo:0,text:'\\u2014'};
+    var lo=raw&0xFF;
+    var text=ENUM3[lo]||('Код '+lo);
+    return {lo,text};
+  }
+
+  // State categories
+  function isIdle(lo){ return lo===251||lo===253||lo===254||lo===255||lo===0; }
+  function isRunning(lo){ return lo===252; }
+  function isStarting(lo){ return lo>=234&&lo<=247; } // work modes incl. Разгон(242)
+  function isFault(lo){ return lo>=1&&lo<=89; }
+
+  var prevLo=0;
+  for(let i=0;i<n;i++){
+    var raw=state[i];
+    if(raw>=65534) continue;
+    var {lo,text}=getState(raw);
+    var t=ts[i];
+
+    // Values for table columns
+    var vFreq=freq?freq[i]:65534;
+    var vFzad=fzad?fzad[i]:65534;
+    var vLoad=load?load[i]:65534;
+    var vPIn=pIn?pIn[i]:65534;
+    var vTPed=tPed?tPed[i]:65534;
+    var vTOil=tOil?tOil[i]:65534;
+
+    var type='log';
+    var label=text;
+
+    // Detect ПУСК: transition from idle/fault to starting/running mode (Разгон=242 etc)
+    if(isStarting(lo) && (isIdle(prevLo)||isFault(prevLo)||prevLo===0)){
+      type='start';
+      // Look for start reason: scan backwards for ENUM2-type info
+      // In practice, the hi-byte of the state word before transition may encode reason
+      var sreason='включение';
+      // Check hi-byte of current or previous records
+      for(var lb=i;lb>=Math.max(0,i-5);lb--){
+        var sv=state[lb]; if(sv>=65534) continue;
+        var shi=(sv>>8)&0xFF;
+        // Typical: hi-byte encodes enum2-like reason
+        if(ENUM2[shi]) { sreason=ENUM2[shi]; break; }
+        // Also check lo-byte in previous idle records for enum2
+        var slo=sv&0xFF;
+        if(ENUM2[slo] && slo!==lo) { sreason=ENUM2[slo]; break; }
+      }
+      // Also check if previous state was Пауза → автоматическое включение
+      if(prevLo===253 || prevLo===254) sreason='автоматическое включение';
+      label='ПУСК:'+sreason;
+    }
+    // Detect СТОП: transition from running/starting to idle/fault
+    else if((isIdle(lo)||isFault(lo)) && (isRunning(prevLo)||isStarting(prevLo))){
+      type='stop';
+      var reason=text;
+      if(isFault(lo)){
+        reason=ENUM3[lo]||('Код '+lo);
+      } else if(lo===251){
+        // Простой — look for fault reason in nearby records
+        reason='Программный останов';
+        for(var lf=Math.max(0,i-2);lf<=Math.min(n-1,i+3);lf++){
+          var sv=state[lf]; if(sv>=65534) continue;
+          var flo=sv&0xFF;
+          if(isFault(flo)){ reason=ENUM3[flo]||('Код '+flo); break; }
+        }
+      }
+      label='СТОП:'+reason;
+    }
+    // Highlight faults/alarms
+    else if(isFault(lo)){
+      type='alarm';
+    }
+    // Running state
+    else if(isRunning(lo)){
+      type='work';
+    }
+    // Starting/work modes
+    else if(isStarting(lo)){
+      type='start';
+    }
+    // System messages: detect via specific patterns in state word
+    // Also detect Блокировка
+    else if(lo===255){
+      type='alarm';
+    }
+
+    events.push({i,type,label,t,vals:{freq:vFreq,fzad:vFzad,load:vLoad,pIn:vPIn,tPed:vTPed,tOil:vTOil}});
+    prevLo=lo;
+  }
+  self.postMessage({events});
+};
+`;
+
+function runDetectWorker(onDone){
+  const paramsTransfer=[];
+  const paramsCopy=D.params.map(p=>{
+    const c=new Uint16Array(p);
+    paramsTransfer.push(c.buffer);
+    return c;
+  });
+  const blob=new Blob([WORKER_CODE],{type:'application/javascript'});
+  const url=URL.createObjectURL(blob);
+  const w=new Worker(url);
+  w.onmessage=function(e){
+    allEvents=e.data.events;
+    URL.revokeObjectURL(url);
+    w.terminate();
+    onDone();
+  };
+  w.postMessage({
+    ts:D.ts, params:paramsCopy, semIdx:SEM_IDX, n:D.n, nParams:D.nParams,
+    ENUM3, ENUM2, ENUM26
+  }, paramsTransfer);
+}
+
+// ── Virtual Scroll ───────────────────────────────────────────────────────────
+function fmtJournalVal(raw, div){
+  if(raw>=65534) return '—';
+  if(div>=100) return (raw/div).toFixed(2);
+  if(div>=10) return (raw/div).toFixed(1);
+  return String(raw);
+}
+
+function vsRender(){
+  const total=evFiltered.length;
+  const tbody=document.getElementById('evBody');
+  const viewport=document.getElementById('evViewport');
+  const scroller=document.getElementById('evScroller');
+  if(!tbody||!viewport||!scroller) return;
+  if(!total){tbody.innerHTML='<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-dim)">Нет событий</td></tr>';viewport.style.paddingTop='0';viewport.style.paddingBottom='0';return;}
+
+  // Get divisors from param definitions
+  const divF=SEM_IDX.freq>=0&&PbyId[SEM_IDX.freq]?PbyId[SEM_IDX.freq].div:10;
+  const divFz=SEM_IDX.fzad>=0&&PbyId[SEM_IDX.fzad]?PbyId[SEM_IDX.fzad].div:10;
+  const divPi=SEM_IDX.pIn>=0&&PbyId[SEM_IDX.pIn]?PbyId[SEM_IDX.pIn].div:100;
+  const divTp=SEM_IDX.tPed>=0&&PbyId[SEM_IDX.tPed]?PbyId[SEM_IDX.tPed].div:10;
+  const divTo=SEM_IDX.tOil>=0&&PbyId[SEM_IDX.tOil]?PbyId[SEM_IDX.tOil].div:10;
+
+  const scrollTop=scroller.scrollTop;
+  const viewH=scroller.clientHeight||400;
+  const overscan=6;
+  const firstRow=Math.max(0,Math.floor(scrollTop/vsRowH)-overscan);
+  const lastRow=Math.min(total-1,Math.ceil((scrollTop+viewH)/vsRowH)+overscan);
+
+  viewport.style.paddingTop='0'; viewport.style.paddingBottom='0';
+  const topPx=firstRow*vsRowH;
+  const botPx=(total-1-lastRow)*vsRowH;
+
+  let html='<tr style="height:'+topPx+'px"><td colspan="10"></td></tr>';
+  for(let i=firstRow;i<=lastRow;i++){
+    const ev=evFiltered[i];
+    const hl=i===vsHighlightRow?' class="ev-highlight"':'';
+    const v=ev.vals;
+    var rowCls=ev.type==='start'?' style="background:rgba(34,197,94,0.08)"':ev.type==='stop'?' style="background:rgba(239,68,68,0.08)"':ev.type==='alarm'?' style="background:rgba(251,191,36,0.08)"':'';
+    html+='<tr'+(hl||rowCls)+'>'+
+      '<td style="color:var(--text-dim)">'+String(ev.i).padStart(6,'0')+'</td>'+
+      '<td>'+fmtTs(ev.t)+'</td>'+
+      '<td>'+ev.label+'</td>'+
+      '<td>'+fmtJournalVal(v.freq,divF)+'</td>'+
+      '<td>'+fmtJournalVal(v.fzad,divFz)+'</td>'+
+      '<td>'+(v.load>=65534?'—':v.load)+'</td>'+
+      '<td>'+fmtJournalVal(v.pIn,divPi)+'</td>'+
+      '<td>'+fmtJournalVal(v.tPed,divTp)+'</td>'+
+      '<td>'+fmtJournalVal(v.tOil,divTo)+'</td>'+
+      '<td>—</td>'+
+    '</tr>';
+  }
+  html+='<tr style="height:'+botPx+'px"><td colspan="10"></td></tr>';
+  tbody.innerHTML=html;
+}
+
+function vsScrollToRow(row){
+  vsHighlightRow=row;
+  const scroller=document.getElementById('evScroller');
+  if(!scroller) return;
+  const viewH=scroller.clientHeight||400;
+  // +1 for top spacer row
+  const targetY=(row+1)*vsRowH - viewH/2 + vsRowH/2;
+  scroller.scrollTop=Math.max(0,targetY);
+  vsRender();
+}
+
+// ── Table builder ────────────────────────────────────────────────────────────
+function buildEventsTable(targetRow){
+  const types=[
+    {key:'all',label:'Все'},
+    {key:'startstop',label:'ПУСК/СТОП'},
+    {key:'alarm',label:'Защиты'},
+    {key:'work',label:'Работа'},
+    {key:'log',label:'Прочие'},
+  ];
+  const filterDiv=document.getElementById('evFilter');
+  filterDiv.innerHTML=types.map(t=>
+    '<button class="tf-btn '+(evFilterType===t.key?'active':'')+'" data-ft="'+t.key+'">'+t.label+'</button>'
+  ).join('');
+  filterDiv.querySelectorAll('.tf-btn').forEach(b=>{
+    b.onclick=()=>{ evFilterType=b.dataset.ft; applyFilter(); };
+  });
+
+  evFiltered=evFilterType==='all'?allEvents
+    :evFilterType==='startstop'?allEvents.filter(e=>e.type==='stop'||e.type==='start')
+    :allEvents.filter(e=>e.type===evFilterType);
+  // Sort by record index to ensure chronological order
+  evFiltered=evFiltered.slice().sort((a,b)=>a.i-b.i);
+  document.getElementById('evCnt').textContent=evFiltered.length+' записей';
+
+  // Column definitions: [label, minWidth]
+  const COLS=[
+    ['№',70],['Дата/Время',155],['Состояние',280],
+    ['F,Гц',60],['Fзад,Гц',68],['Загр,%',55],['Pпр,ат',62],
+    ['Tобм,°C',70],['Tмасл,°C',75],['Ошибка',55]
+  ];
+  // Init colWidths once, or keep existing
+  if(!window.colWidths||window.colWidths.length!==COLS.length)
+    window.colWidths=COLS.map(c=>c[1]);
+
+  // Build colgroups (head + body — must stay in sync)
+  const colHtml=window.colWidths.map(w=>'<col style="width:'+w+'px;min-width:'+w+'px">').join('');
+  document.getElementById('evCols').innerHTML=colHtml;
+  const ch=document.getElementById('evColsHead');
+  if(ch) ch.innerHTML=colHtml;
+  // Sync header table total width with body table
+  const totalW=window.colWidths.reduce((a,b)=>a+b,0);
+  const ht=document.getElementById('evTableHead');
+  if(ht) ht.style.width=totalW+'px';
+  document.getElementById('evTable').style.width=totalW+'px';
+
+  // Build header with resize handles
+  document.getElementById('evHead').innerHTML='<tr>'+
+    COLS.map((c,i)=>
+      '<th style="width:'+window.colWidths[i]+'px;min-width:'+window.colWidths[i]+'px;position:relative">'+
+        '<span class="th-inner">'+c[0]+'</span>'+
+        '<div class="th-resize" data-col="'+i+'"></div>'+
+      '</th>'
+    ).join('')+
+  '</tr>';
+
+  // Wire resize handles
+  _initColResize();
+
+  vsHighlightRow=(targetRow!=null&&targetRow>=0)?targetRow:-1;
+  vsRender();
+  if(vsHighlightRow>=0) vsScrollToRow(vsHighlightRow);
+}
+
+function applyFilter(){
+  evFiltered=evFilterType==='all'?allEvents
+    :evFilterType==='startstop'?allEvents.filter(e=>e.type==='stop'||e.type==='start')
+    :allEvents.filter(e=>e.type===evFilterType);
+  evFiltered=evFiltered.slice().sort((a,b)=>a.i-b.i);
+  document.getElementById('evCnt').textContent=evFiltered.length+' записей';
+  // rebuild filter buttons to update active state
+  const filterDiv=document.getElementById('evFilter');
+  const types=[
+    {key:'all',label:'Все'},{key:'startstop',label:'ПУСК/СТОП'},
+    {key:'alarm',label:'Защиты'},{key:'work',label:'Работа'},{key:'log',label:'Прочие'},
+  ];
+  filterDiv.innerHTML=types.map(t=>
+    '<button class="tf-btn '+(evFilterType===t.key?'active':'')+'" data-ft="'+t.key+'">'+t.label+'</button>'
+  ).join('');
+  filterDiv.querySelectorAll('.tf-btn').forEach(b=>{
+    b.onclick=()=>{ evFilterType=b.dataset.ft; applyFilter(); };
+  });
+  vsHighlightRow=-1;
+  vsRender();
+}
+
+
+// Column resize
+function _initColResize(){
+  document.querySelectorAll('.th-resize').forEach(handle=>{
+    handle.onmousedown=function(e){
+      e.preventDefault();
+      const col=parseInt(handle.dataset.col);
+      const th=handle.parentElement;
+      const startX=e.clientX;
+      const startW=window.colWidths[col];
+      th.classList.add('resizing');
+      function onMove(ev){
+        const newW=Math.max(40, startW+(ev.clientX-startX));
+        window.colWidths[col]=newW;
+        const totalW=window.colWidths.reduce((a,b)=>a+b,0);
+        // Sync body colgroup
+        const cols=document.getElementById('evCols');
+        if(cols&&cols.children[col]){
+          cols.children[col].style.width=newW+'px';
+          cols.children[col].style.minWidth=newW+'px';
+        }
+        // Sync head colgroup
+        const colsH=document.getElementById('evColsHead');
+        if(colsH&&colsH.children[col]){
+          colsH.children[col].style.width=newW+'px';
+          colsH.children[col].style.minWidth=newW+'px';
+        }
+        // Sync table widths
+        const ht=document.getElementById('evTableHead');
+        if(ht) ht.style.width=totalW+'px';
+        const bt=document.getElementById('evTable');
+        if(bt) bt.style.width=totalW+'px';
+        // Update th
+        th.style.width=newW+'px';
+        th.style.minWidth=newW+'px';
+      }
+      function onUp(){
+        th.classList.remove('resizing');
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+        vsRender();
+      }
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+    };
+  });
+}
+
+// Wire virtual scroll repaint on scroll
+function _wireVsScroll(){
+  const sc=document.getElementById('evScroller');
+  if(!sc||sc._vsWired) return;
+  sc._vsWired=true;
+  sc.addEventListener('scroll',()=>{
+    vsRender();
+    // Sync horizontal scroll of header
+    const hw=document.getElementById('evHeadWrap');
+    if(hw) hw.scrollLeft=sc.scrollLeft;
+  },{passive:true});
+}
+
+document.getElementById('evClose').addEventListener('click',()=>{
+  document.getElementById('tableWrap').classList.remove('open');
+  const hb=document.getElementById('journalBtnHdr');
+  if(hb) hb.classList.remove('active');
+});
+</script>
+</body>
+</html>
