@@ -1369,8 +1369,29 @@ self.onmessage=function(e){
   // State categories
   function isIdle(lo){ return lo===251||lo===253||lo===254||lo===255||lo===0; }
   function isRunning(lo){ return lo===252; }
-  function isStarting(lo){ return lo>=234&&lo<=247; } // work modes incl. Разгон(242)
+  function isStarting(lo){ return lo>=235&&lo<=247; } // work modes incl. Разгон(242), exclude 234=Останов
   function isFault(lo){ return lo>=1&&lo<=89; }
+  function isStopTarget(lo){ return lo===234||lo===251||lo===253||lo===255; }
+
+  const START_REASON_CODES={35:1,36:1,37:1,94:1,96:1};
+  const STOP_REASON_CODES={33:1,34:1,35:1,39:1,93:1,95:1};
+
+  function reasonByCode(code){
+    return ENUM26[code]||ENUM2[code]||ENUM3[code]||'';
+  }
+
+  function findTransitionReason(pos,isStart){
+    const allow=isStart?START_REASON_CODES:STOP_REASON_CODES;
+    for(let k=pos;k>=Math.max(0,pos-6);k--){
+      const sv=state[k]; if(sv>=65534) continue;
+      const hi=(sv>>8)&0xFF;
+      if(allow[hi]){
+        const txt=reasonByCode(hi);
+        if(txt) return txt;
+      }
+    }
+    return '';
+  }
 
   var prevLo=0;
   for(let i=0;i<n;i++){
@@ -1390,42 +1411,20 @@ self.onmessage=function(e){
     var type='log';
     var label=text;
 
-    // Detect ПУСК: transition from idle/fault to starting/running mode (Разгон=242 etc)
+    // Detect ПУСК: transition from idle/fault to starting mode.
+    // Reason is taken only from encoded reason codes (Configs enums), without defaults.
     if(isStarting(lo) && (isIdle(prevLo)||isFault(prevLo)||prevLo===0)){
       type='start';
-      // Look for start reason: scan backwards for ENUM2-type info
-      // In practice, the hi-byte of the state word before transition may encode reason
-      var sreason='включение';
-      // Check hi-byte of current or previous records
-      for(var lb=i;lb>=Math.max(0,i-5);lb--){
-        var sv=state[lb]; if(sv>=65534) continue;
-        var shi=(sv>>8)&0xFF;
-        // Typical: hi-byte encodes enum2-like reason
-        if(ENUM2[shi]) { sreason=ENUM2[shi]; break; }
-        // Also check lo-byte in previous idle records for enum2
-        var slo=sv&0xFF;
-        if(ENUM2[slo] && slo!==lo) { sreason=ENUM2[slo]; break; }
-      }
-      // Also check if previous state was Пауза → автоматическое включение
-      if(prevLo===253 || prevLo===254) sreason='автоматическое включение';
-      label='ПУСК:'+sreason;
+      var sreason=findTransitionReason(i,true);
+      label=sreason?('ПУСК:'+sreason):text;
     }
-    // Detect СТОП: transition from running/starting to idle/fault
-    else if((isIdle(lo)||isFault(lo)) && (isRunning(prevLo)||isStarting(prevLo))){
+    // Detect СТОП: transition from running/starting to explicit stop states
+    // (including 234=Останов), but not to Ожидание АПВ (254).
+    // Reason is taken only from encoded reason codes (Configs enums), without defaults.
+    else if(isStopTarget(lo) && (isRunning(prevLo)||isStarting(prevLo))){
       type='stop';
-      var reason=text;
-      if(isFault(lo)){
-        reason=ENUM3[lo]||('Код '+lo);
-      } else if(lo===251){
-        // Простой — look for fault reason in nearby records
-        reason='Программный останов';
-        for(var lf=Math.max(0,i-2);lf<=Math.min(n-1,i+3);lf++){
-          var sv=state[lf]; if(sv>=65534) continue;
-          var flo=sv&0xFF;
-          if(isFault(flo)){ reason=ENUM3[flo]||('Код '+flo); break; }
-        }
-      }
-      label='СТОП:'+reason;
+      var reason=findTransitionReason(i,false);
+      label='СТОП:'+(reason||text);
     }
     // Highlight faults/alarms
     else if(isFault(lo)){
